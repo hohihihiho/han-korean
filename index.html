@@ -1196,6 +1196,8 @@
     </div>
     <input id="apiInput" placeholder="http://192.168.1.10:1234"
            style="width:100%;height:38px;padding:0 12px;border-radius:10px;border:1px solid rgba(0,0,0,.1);">
+    <input id="apiKeyInput" type="password" placeholder="API Key（本地模型可留空）"
+           style="width:100%;height:38px;margin-top:10px;padding:0 12px;border-radius:10px;border:1px solid rgba(0,0,0,.1);">
     <div style="display:flex; justify-content:space-between; margin-top:18px;">
       <button class="btn" id="apiCancel">取消</button>
       <button class="btn primary" id="apiSave">保存并检测</button>
@@ -7484,6 +7486,13 @@ function apiBase(){
   if(location.protocol === "file:") return "http://127.0.0.1:1234";
   return "";   // 留空 = 同域，由本地服务转发到 LM Studio
 }
+
+function apiHeaders(extra){
+  const h = Object.assign({}, extra || {});
+  const k = (state.settings && state.settings.apiKey) || "";
+  if(k) h["Authorization"] = "Bearer " + k;
+  return h;
+}
 function apiEndpoint(){ return apiBase() + "/v1/chat/completions"; }
 function apiModels(){ return apiBase() + "/v1/models"; }
 const STORE_KEY = "kr-panel-v2";
@@ -7601,7 +7610,7 @@ function renderTemplates(){
 async function check(){
   const dot = $("#dot"), txt = $("#statusText");
   try{
-    const r = await fetch(apiModels(), { cache: "no-store" });
+    const r = await fetch(apiModels(), { cache: "no-store", headers: apiHeaders() });
     if(!r.ok) throw new Error("HTTP " + r.status);
     const d = await r.json();
     const ids = (d.data || []).map(m => m.id);
@@ -7629,7 +7638,7 @@ async function ask(messages, maxTokens, modelOverride){
   async function post(model){
     return fetch(apiEndpoint(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         model: model,
         messages: messages,
@@ -7644,7 +7653,7 @@ async function ask(messages, maxTokens, modelOverride){
   // 失败时自动回退到「当前真正可用的模型」
   if(!res.ok && (res.status === 400 || res.status === 404)){
     try{
-      const r = await fetch(apiModels(), { cache: "no-store" });
+      const r = await fetch(apiModels(), { cache: "no-store", headers: apiHeaders() });
       const d = await r.json();
       const ids = (d.data || []).map(m => m.id).filter(id => !/embed/i.test(id));
       const fallback = ids.find(id => id === state.currentModel) ||
@@ -9162,14 +9171,17 @@ function initApiSetting(){
   const cancel = document.getElementById("apiCancel");
   if(!btn || !overlay) return;
 
+  const keyInput = document.getElementById("apiKeyInput");
   btn.onclick = function(){
     input.value = (state.settings.apiBase || "");
+    if(keyInput) keyInput.value = (state.settings.apiKey || "");
     overlay.style.display = "flex";
   };
   cancel.onclick = function(){ overlay.style.display = "none"; };
   save.onclick = function(){
     const v = (input.value || "").trim().replace(/\/+$/, "");
     state.settings.apiBase = v;
+    if(keyInput) state.settings.apiKey = (keyInput.value || "").trim();
     save();
     overlay.style.display = "none";
     toast(v ? "已保存：" + v : "已恢复默认地址");
@@ -9527,7 +9539,7 @@ setInterval(function(){
 <script>
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", function(){
-    navigator.serviceWorker.register("./sw.js").catch(function(){});
+    navigator.serviceWorker.register("sw.js").catch(function(){});
   });
 }
 </script>
