@@ -8220,6 +8220,12 @@ function speak(text, rate, lang){
   const b = nativeBridge("speak");
   if(b){ b.postMessage({ text: String(text), rate: rate || 1, lang: lang || "ko-KR" }); return; }
   try{
+    if(window.AndroidTTS && typeof window.AndroidTTS.speak === "function"){
+      window.AndroidTTS.speak(String(text), lang || "ko-KR", rate || 1);
+      return;
+    }
+  }catch(e){}
+  try{
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "ko-KR";
